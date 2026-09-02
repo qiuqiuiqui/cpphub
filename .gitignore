@@ -1,0 +1,98 @@
+# ============================================
+# C++ Hub - Root .gitignore
+# ============================================
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS
+desktop.ini
+$RECYCLE.BIN/
+
+# ============================================
+# Java / Spring Boot / Maven
+# ============================================
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+replay_pid*
+
+# Application config with secrets (use *.example as templates)
+application-dev.yml
+application-prod.yml
+application-local.yml
+**/application-dev.yml
+**/application-prod.yml
+**/application-local.yml
+
+# ============================================
+# Node / Vue / Vite / pnpm
+# ============================================
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+.env
+.env.local
+.env.*.local
+.npm/
+.eslintcache
+*.tsbuildinfo
+coverage/
+
+# ============================================
+# Go / Blog Agent
+# ============================================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+*.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local agent runtime data (audit DB, keypair, config)
+cpphub-agent/
+*.db
+*.db-shm
+*.db-wal
+
+# ============================================
+# Tools / Local-only
+# ============================================
+tools/
+backend.log
+frontend.log
+agent.log
+
+# ============================================
+# Secrets / Environment
+# ============================================
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.envrc

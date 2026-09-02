@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cpphub.blog.mapper.PostMapper">
+
+    <resultMap id="BaseResultMap" type="com.cpphub.blog.entity.Post">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="slug" column="slug"/>
+        <result property="contentMd" column="content_md"/>
+        <result property="contentHtml" column="content_html"/>
+        <result property="tocJson" column="toc_json"/>
+        <result property="status" column="status"/>
+        <result property="publishedAt" column="published_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectPublishedPage" resultMap="BaseResultMap">
+        SELECT p.* FROM `post` p
+        <if test="tagName != null and tagName != ''">
+            INNER JOIN post_tag pt ON pt.post_id = p.id
+            INNER JOIN tag t ON t.id = pt.tag_id AND t.name = #{tagName}
+        </if>
+        WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
+        ORDER BY p.published_at DESC
+    </select>
+
+    <select id="searchByKeyword" resultMap="BaseResultMap">
+        SELECT * FROM `post`
+        WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+          AND MATCH(title, content_md) AGAINST(#{keyword} IN BOOLEAN MODE)
+        ORDER BY published_at DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

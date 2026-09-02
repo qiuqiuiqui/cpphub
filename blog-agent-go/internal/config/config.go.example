@@ -1,0 +1,9 @@
+// Example showing the Config struct. The actual config.json is auto-created on first run
+// at %AppData%\cpphub-agent\config.json — never commit real credentials to source control.
+//
+// To override the JWT secret used by the cloud backend, set the env var before starting:
+//   set CPPHUB_AGENT_SECRET=your-random-32-byte-hex
+package config
+
+// struct Config holds: CloudBase, DeviceID, JWT, DataDir
+// See config.go in this package for the JSON layout.

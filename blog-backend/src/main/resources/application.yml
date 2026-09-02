@@ -1,0 +1,48 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: blog-backend
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+server:
+  port: 8090
+  servlet:
+    session:
+      cookie:
+        name: BLOG_SESSIONID
+        http-only: true
+        same-site: lax
+      timeout: 8h
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: deletedAt
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      id-type: auto
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+logging:
+  level:
+    root: INFO
+    com.cpphub: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
