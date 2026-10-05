@@ -18,6 +18,12 @@ type ProbeSpec struct {
 	Args        []string
 	Timeout     time.Duration
 	OutputBytes int // stdout/stderr cap; default 64KB
+	// IgnoreExit, when true, treats any non-zero exit code as success. Use for tools
+	// that print a version banner to stdout and return non-zero (e.g. cl.exe /Bv).
+	IgnoreExit bool
+	// Category is a coarse tool category used by the UI to group results:
+	//   "compiler" / "build" / "package" / "vcs" / "runtime"
+	Category string
 }
 
 // ParseFunc parses the command stdout into a structured version string.
@@ -42,13 +48,24 @@ type InvocationContext struct {
 	RequestID string
 }
 
-// ProbeResult is what a single probe returns.
+// ProbeResult is what a single probe returns. Multiple installations of the same tool
+// (e.g. several g++ versions) are listed in Instances.
 type ProbeResult struct {
-	Name      string `json:"name"`
-	Available bool   `json:"available"`
-	Version   string `json:"version,omitempty"`
-	Path      string `json:"path,omitempty"`
-	Error     string `json:"error,omitempty"`
+	Name      string     `json:"name"`
+	Category  string     `json:"category"` // "compiler" | "build" | "package" | "vcs" | "runtime"
+	Available bool       `json:"available"`
+	Instances []Instance `json:"instances"`
+	// Back-compat fields — set from the first instance when available.
+	Version string `json:"version,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// Instance is a single installation of a tool (path + version + source label).
+type Instance struct {
+	Path    string `json:"path"`
+	Version string `json:"version,omitempty"`
+	Source  string `json:"source,omitempty"` // "PATH" / "absolute" / label of the candidate
 }
 
 // CommandResult is the aggregated output of a CommandSpec.
@@ -130,42 +147,90 @@ func runProbe(ic InvocationContext, p ProbeSpec, parser ParseFunc) ProbeResult {
 		maxBytes = 64 * 1024
 	}
 
-	candidates := []string{p.Exe}
-	candidates = append(candidates, p.Fallback...)
-
-	var lastErr error
-	for _, exe := range candidates {
-		if exe == "" {
+	// Collect candidate paths: PATH-resolvable Exe first, then fallbacks.
+	type cand struct {
+		path   string
+		source string
+	}
+	candidates := []cand{}
+	if p.Exe != "" {
+		if abs, err := exec.Resolve(p.Exe); err == nil && abs != "" {
+			src := "absolute"
+			if abs != p.Exe {
+				src = "PATH" // looked up via PATH
+			}
+			candidates = append(candidates, cand{abs, src})
+		}
+	}
+	for _, fb := range p.Fallback {
+		if fb == "" {
 			continue
 		}
-		out, err := exec.RunCaptured(ic.Ctx, exe, p.Args, timeout, maxBytes)
-		if err == nil {
-			version := ""
-			if parser != nil {
-				version = parser(out)
-			} else {
-				version = firstNonEmptyLine(out)
-			}
-			abs, _ := exec.Resolve(exe)
-			return ProbeResult{
-				Name:      p.Name,
-				Available: true,
-				Version:   version,
-				Path:      abs,
-			}
-		}
-		lastErr = err
+		candidates = append(candidates, cand{fb, "fallback"})
 	}
 
-	msg := "not found"
-	if lastErr != nil {
-		msg = lastErr.Error()
+	var instances []Instance
+	var lastErr error
+	seen := map[string]bool{} // de-duplicate by absolute path
+	for _, c := range candidates {
+		if seen[c.path] {
+			continue
+		}
+		seen[c.path] = true
+		out, runErr := exec.RunCaptured(ic.Ctx, c.path, p.Args, timeout, maxBytes)
+		if runErr != nil {
+			// hard failure (binary not found, fork/exec error) → cannot run this candidate
+			if len(out) == 0 {
+				lastErr = runErr
+				continue
+			}
+			// soft failure: process ran but exited non-zero. Honor IgnoreExit and/or
+			// fall through to parse stdout (banner-style tools).
+			if !p.IgnoreExit {
+				lastErr = runErr
+				continue
+			}
+		}
+		if len(out) == 0 {
+			// process ran but produced no output — treat as failure for this candidate
+			lastErr = fmt.Errorf("no output")
+			continue
+		}
+		version := ""
+		if parser != nil {
+			version = parser(out)
+		} else {
+			version = firstNonEmptyLine(out)
+		}
+		instances = append(instances, Instance{
+			Path:    c.path,
+			Version: version,
+			Source:  c.source,
+		})
 	}
-	return ProbeResult{
+
+	if len(instances) == 0 {
+		msg := "not found"
+		if lastErr != nil {
+			msg = lastErr.Error()
+		}
+		return ProbeResult{
+			Name:      p.Name,
+			Category:  p.Category,
+			Available: false,
+			Error:     msg,
+		}
+	}
+	res := ProbeResult{
 		Name:      p.Name,
-		Available: false,
-		Error:     msg,
+		Category:  p.Category,
+		Available: true,
+		Instances: instances,
 	}
+	// Back-compat: first instance is the "primary".
+	res.Version = instances[0].Version
+	res.Path = instances[0].Path
+	return res
 }
 
 func firstNonEmptyLine(b []byte) string {

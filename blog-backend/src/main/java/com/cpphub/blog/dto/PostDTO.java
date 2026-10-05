@@ -5,7 +5,6 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.Data;
 
-
 @Data
 public class PostDTO {
   private Long id;
@@ -17,6 +16,8 @@ public class PostDTO {
   private String slug;
 
   @NotBlank(message = "contentMd must not be blank") private String contentMd;
+
+  private Long categoryId;
 
   /**
    * Tag names to associate with this post. Empty for no tags.

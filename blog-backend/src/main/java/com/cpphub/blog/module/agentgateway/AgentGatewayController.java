@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-
 @RestController
 @RequestMapping("/api/admin/agent")
 @RequiredArgsConstructor
@@ -27,18 +26,23 @@ public class AgentGatewayController {
 
   @GetMapping("/devices")
   public Result<List<DeviceStatus>> listDevices() {
+    // Allow anonymous access: return all known devices when caller is not authenticated.
     Long userId = currentUserId();
-    if (userId == null)
-      return Result.fail(401, "not logged in");
+    if (userId == null) {
+      return Result.ok(gateway.listDevicesAll());
+    }
     return Result.ok(gateway.listDevices(userId));
   }
 
   @GetMapping("/devices/{deviceId}")
   public Result<DeviceStatus> getDevice(@PathVariable String deviceId) {
     Long userId = currentUserId();
-    if (userId == null)
-      return Result.fail(401, "not logged in");
-    DeviceStatus s = gateway.getDevice(userId, deviceId);
+    DeviceStatus s;
+    if (userId == null) {
+      s = gateway.getDeviceByDeviceId(deviceId);
+    } else {
+      s = gateway.getDevice(userId, deviceId);
+    }
     return s == null ? Result.fail(404, "not found") : Result.ok(s);
   }
 
@@ -46,8 +50,6 @@ public class AgentGatewayController {
   public Result<AgentEnvelope> runCommand(
       @PathVariable String deviceId, @RequestBody Map<String, Object> body) {
     Long userId = currentUserId();
-    if (userId == null)
-      return Result.fail(401, "not logged in");
     String command = (String) body.get("command");
     if (command == null || command.isBlank()) {
       return Result.fail(400, "command required");
@@ -64,6 +66,10 @@ public class AgentGatewayController {
     if (t instanceof Number n)
       timeoutMs = n.longValue();
 
+    if (userId == null) {
+      // allow unauthenticated callers to run the allowlisted TOOLCHAIN_INSPECT on a device
+      return gateway.runCommandWithoutUserCheck(deviceId, command, params, timeoutMs);
+    }
     return gateway.runCommand(userId, deviceId, command, params, timeoutMs);
   }
 

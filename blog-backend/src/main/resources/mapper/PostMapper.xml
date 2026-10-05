@@ -26,6 +26,27 @@
         ORDER BY p.published_at DESC
     </select>
 
+    <select id="selectAdminPage" resultMap="BaseResultMap">
+        SELECT p.* FROM `post` p
+        <where>
+            p.deleted_at IS NULL
+            <if test="status != null and status != '' and status != 'ALL'">
+                AND p.status = #{status}
+            </if>
+        </where>
+        ORDER BY p.created_at DESC
+    </select>
+
+    <select id="selectAdminCount" resultType="long">
+        SELECT COUNT(*) FROM `post` p
+        <where>
+            p.deleted_at IS NULL
+            <if test="status != null and status != '' and status != 'ALL'">
+                AND p.status = #{status}
+            </if>
+        </where>
+    </select>
+
     <select id="searchByKeyword" resultMap="BaseResultMap">
         SELECT * FROM `post`
         WHERE status = 'PUBLISHED' AND deleted_at IS NULL

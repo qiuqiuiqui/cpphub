@@ -3,11 +3,9 @@ package com.cpphub.blog.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 import lombok.Data;
-
 
 @Data
 @TableName("post")
@@ -19,6 +17,12 @@ public class Post {
   private String slug;
 
   private String contentMd;
+
+  @TableField("category_id") private Long categoryId;
+
+  private Integer wordCount;
+
+  private Integer viewCount;
 
   private String contentHtml;
 
@@ -32,5 +36,9 @@ public class Post {
 
   private LocalDateTime updatedAt;
 
-  @TableLogic @TableField(select = false) private LocalDateTime deletedAt;
+  /**
+   * Soft-delete timestamp. We use explicit IS NULL in queries (no @TableLogic)
+   *  because the column type is DATETIME but the default value (1) doesn't match.
+   */
+  @TableField(select = false) private LocalDateTime deletedAt;
 }

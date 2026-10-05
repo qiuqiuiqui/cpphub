@@ -12,7 +12,6 @@ import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.springframework.stereotype.Service;
 
-
 @Slf4j
 @Service
 public class MarkdownServiceImpl implements MarkdownService {
@@ -44,11 +43,16 @@ public class MarkdownServiceImpl implements MarkdownService {
     dto.setId(post.getId());
     dto.setTitle(post.getTitle());
     dto.setSlug(post.getSlug());
+    dto.setContentMd(post.getContentMd());
     dto.setContentHtml(post.getContentHtml());
     dto.setTocJson(post.getTocJson());
+    dto.setStatus(post.getStatus());
     dto.setPublishedAt(post.getPublishedAt());
     dto.setCreatedAt(post.getCreatedAt());
     dto.setUpdatedAt(post.getUpdatedAt());
+    dto.setCategoryId(post.getCategoryId());
+    dto.setWordCount(post.getWordCount() == null ? 0 : post.getWordCount());
+    dto.setViewCount(post.getViewCount() == null ? 0 : post.getViewCount());
     dto.setTags(tags);
     return dto;
   }

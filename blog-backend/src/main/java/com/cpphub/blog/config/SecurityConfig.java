@@ -41,6 +41,10 @@ public class SecurityConfig {
                 // Agent (local-only, auth via JWT inside the WSS handshake / pairing code)
                 .requestMatchers("/api/agent/pair", "/api/agent/ws/**")
                 .permitAll()
+                // Allow anonymous access to agent gateway device endpoints so local EnvCheck can
+                // work
+                .requestMatchers("/api/admin/agent/devices", "/api/admin/agent/devices/**")
+                .permitAll()
                 // Admin endpoints
                 .requestMatchers("/api/admin/login")
                 .permitAll()

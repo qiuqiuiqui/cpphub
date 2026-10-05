@@ -19,6 +19,12 @@ const MaxOutputBytes = 1024 * 1024 // 1 MB
 //
 // SECURITY: never pass user-controlled strings as the cmd name; always go through the
 // registry in commands/. Args must be a pre-validated []string.
+//
+// Returns:
+//   - (stdout, nil) on success (exit 0)
+//   - (stdout, *exec.ExitError) when the process ran but exited non-zero — caller can
+//     still use stdout if it carries useful info (e.g. version banners)
+//   - (nil, wrappedPathError) when fork/exec itself failed (binary missing, ACL, etc.)
 func RunCaptured(ctx context.Context, name string, args []string, timeout time.Duration, maxBytes int) ([]byte, error) {
 	if name == "" {
 		return nil, errors.New("empty command name")
@@ -46,20 +52,56 @@ func RunCaptured(ctx context.Context, name string, args []string, timeout time.D
 	err := cmd.Run()
 	// timeout context canceled -> report deadline exceeded
 	if cctx.Err() == context.DeadlineExceeded {
-		return stdout.Bytes(), fmt.Errorf("timeout after %s", timeout)
+		// Even on timeout, return whatever was captured so far (stdout || stderr).
+		return mergeForOutput(stdout.Bytes(), stderr.Bytes()), fmt.Errorf("timeout after %s", timeout)
 	}
 	if err != nil {
-		// combine stderr (truncated) into the error message for diagnostics
+		// exec.ExitError = process ran but exited non-zero (still useful: stdout may carry banner).
+		// Anything else (e.g. ENOENT, EACCES, fork/exec failure, missing DLL) is a hard start failure.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			// Combine stdout + stderr so callers see all output (some tools like cl.exe write
+			// version info to stderr instead of stdout).
+			combined := mergeForOutput(stdout.Bytes(), stderr.Bytes())
+			msg := err.Error()
+			if e := stderr.Bytes(); len(e) > 0 {
+				if len(e) > 512 {
+					e = e[:512]
+				}
+				msg += ": " + string(e)
+			}
+			return combined, &exec.ExitError{
+				Stderr: []byte(msg),
+			}
+		}
+		// Hard failure (binary not found OR DLL missing on Windows). Include stderr if any.
 		msg := err.Error()
 		if e := stderr.Bytes(); len(e) > 0 {
-			if len(e) > 512 {
-				e = e[:512]
+			if len(e) > 256 {
+				e = e[:256]
 			}
-			msg += ": " + string(e)
+			msg += " (stderr: " + string(e) + ")"
 		}
-		return stdout.Bytes(), errors.New(msg)
+		return nil, errors.New(msg)
 	}
-	return stdout.Bytes(), nil
+	return mergeForOutput(stdout.Bytes(), stderr.Bytes()), nil
+}
+
+// mergeForOutput concatenates stdout and stderr, preferring stdout when present.
+// Used because some tools (notably MSVC cl.exe with /Bv) write banner/version
+// information to stderr instead of stdout.
+func mergeForOutput(stdout, stderr []byte) []byte {
+	if len(stdout) == 0 {
+		return stderr
+	}
+	if len(stderr) == 0 {
+		return stdout
+	}
+	combined := make([]byte, 0, len(stdout)+len(stderr)+1)
+	combined = append(combined, stdout...)
+	combined = append(combined, '\n')
+	combined = append(combined, stderr...)
+	return combined
 }
 
 // Resolve returns the absolute path that would be executed for `name`, if locatable.

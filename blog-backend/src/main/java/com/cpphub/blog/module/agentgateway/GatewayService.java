@@ -193,10 +193,26 @@ public class GatewayService {
         .toList();
   }
 
+  /** List all devices (no user filter). Used for anonymous access where appropriate. */
+  public List<DeviceStatus> listDevicesAll() {
+    return deviceMapper
+        .selectList(Wrappers.<AgentDevice>lambdaQuery().orderByDesc(AgentDevice::getCreatedAt))
+        .stream()
+        .map(this::toStatus)
+        .toList();
+  }
+
   public DeviceStatus getDevice(Long userId, String deviceId) {
     AgentDevice dev = deviceMapper.selectOne(Wrappers.<AgentDevice>lambdaQuery()
             .eq(AgentDevice::getDeviceId, deviceId)
             .eq(AgentDevice::getUserId, userId));
+    return dev == null ? null : toStatus(dev);
+  }
+
+  /** Get device by deviceId without checking owner userId. */
+  public DeviceStatus getDeviceByDeviceId(String deviceId) {
+    AgentDevice dev = deviceMapper.selectOne(
+        Wrappers.<AgentDevice>lambdaQuery().eq(AgentDevice::getDeviceId, deviceId));
     return dev == null ? null : toStatus(dev);
   }
 
@@ -256,6 +272,66 @@ public class GatewayService {
         resp.getError() == null ? "OK" : "FAIL", resp.getError());
 
     // Wrap response payload in a friendly envelope so the frontend can use Result<data>
+    if (resp.getError() != null) {
+      return Result.fail(500, resp.getError());
+    }
+    return Result.ok(resp);
+  }
+
+  /** Run a command against a device without validating the caller's userId. */
+  public Result<AgentEnvelope> runCommandWithoutUserCheck(
+      String deviceId, String command, Map<String, Object> params, long timeoutMs) {
+    AgentDevice dev = deviceMapper.selectOne(
+        Wrappers.<AgentDevice>lambdaQuery().eq(AgentDevice::getDeviceId, deviceId));
+    if (dev == null) {
+      return Result.fail(404, "device not found");
+    }
+
+    WebSocketSession session = sessions.get(deviceId);
+    if (session == null || !session.isOpen()) {
+      return Result.fail(503, "device offline");
+    }
+
+    String requestId = IdUtil.fastSimpleUUID();
+    AgentEnvelope req = new AgentEnvelope();
+    req.setType("CMD_REQUEST");
+    req.setId(requestId);
+    req.setCommand(command);
+    req.setParams(params);
+    req.setTs(System.currentTimeMillis());
+
+    CompletableFuture<AgentEnvelope> fut = new CompletableFuture<>();
+    pending.put(requestId, fut);
+
+    long start = System.currentTimeMillis();
+    try {
+      synchronized (session) {
+        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(req)));
+      }
+    } catch (Exception e) {
+      pending.remove(requestId);
+      return Result.fail(500, "send failed: " + e.getMessage());
+    }
+
+    AgentEnvelope resp;
+    try {
+      resp = fut.get(timeoutMs, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException te) {
+      pending.remove(requestId);
+      logCommand(requestId, deviceId, null, command, params, -1, System.currentTimeMillis() - start,
+          "TIMEOUT", "client timeout");
+      return Result.fail(504, "agent timeout");
+    } catch (Exception e) {
+      pending.remove(requestId);
+      logCommand(requestId, deviceId, null, command, params, -1, System.currentTimeMillis() - start,
+          "FAIL", e.getMessage());
+      return Result.fail(500, "agent error: " + e.getMessage());
+    }
+
+    long dur = System.currentTimeMillis() - start;
+    logCommand(requestId, deviceId, null, command, params, 0, dur,
+        resp.getError() == null ? "OK" : "FAIL", resp.getError());
+
     if (resp.getError() != null) {
       return Result.fail(500, resp.getError());
     }

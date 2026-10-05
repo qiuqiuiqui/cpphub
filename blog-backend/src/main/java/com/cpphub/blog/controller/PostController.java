@@ -9,7 +9,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -32,6 +31,11 @@ public class PostController {
     if (dto == null)
       return Result.fail(404, "Post not found");
     return Result.ok(dto);
+  }
+
+  @GetMapping("/posts/category/{categorySlug}")
+  public Result<List<PostSummaryDTO>> postsByCategory(@PathVariable String categorySlug) {
+    return Result.ok(postService.listPublishedByCategoryBySlug(categorySlug));
   }
 
   @GetMapping("/posts/search")

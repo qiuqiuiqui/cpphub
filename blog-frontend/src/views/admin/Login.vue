@@ -1,6 +1,9 @@
 <template>
   <div class="login-page">
     <n-card title="登录管理后台" class="login-card">
+      <div class="top-bar">
+        <router-link to="/" class="back-home">← 返回首页</router-link>
+      </div>
       <n-form ref="formRef" :model="form" :rules="rules" @keyup.enter="onSubmit">
         <n-form-item label="用户名" path="username">
           <n-input v-model:value="form.username" placeholder="admin" />
@@ -59,6 +62,19 @@ async function onSubmit() {
 .login-card {
   width: 380px;
   border-radius: 12px;
+}
+.top-bar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+.back-home {
+  color: #2080f0;
+  font-size: 13px;
+  text-decoration: none;
+}
+.back-home:hover {
+  text-decoration: underline;
 }
 .hint {
   margin-top: 12px;

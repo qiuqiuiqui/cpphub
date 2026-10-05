@@ -24,6 +24,21 @@ const routes: RouteRecordRaw[] = [
         path: 'search',
         name: 'search',
         component: () => import('@/views/Search.vue')
+      },
+      {
+        path: 'categories/:slug',
+        name: 'category-detail',
+        component: () => import('@/views/CategoryPage.vue')
+      },
+      {
+        path: 'tools',
+        name: 'tools-home',
+        component: () => import('@/views/tools/EnvCheck.vue')
+      },
+      {
+        path: 'tools/env',
+        name: 'tools-env',
+        component: () => import('@/views/tools/EnvCheck.vue')
       }
     ]
   },
@@ -39,27 +54,47 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        redirect: '/admin/posts'
+        redirect: { name: 'admin-posts-published' }
       },
       {
         path: 'posts',
-        name: 'admin-posts',
+        redirect: { name: 'admin-posts-published' }
+      },
+      {
+        path: 'posts/published',
+        name: 'admin-posts-published',
+        meta: { title: '发布文章管理' },
+        component: () => import('@/views/admin/PostList.vue')
+      },
+      {
+        path: 'posts/drafts',
+        name: 'admin-posts-drafts',
+        meta: { title: '草稿箱管理' },
         component: () => import('@/views/admin/PostList.vue')
       },
       {
         path: 'posts/new',
         name: 'admin-post-new',
+        meta: { title: '新建文章' },
         component: () => import('@/views/admin/PostEditor.vue')
+      },
+      {
+        path: 'categories',
+        name: 'admin-categories',
+        meta: { title: '栏目管理' },
+        component: () => import('@/views/admin/CategoryManager.vue')
       },
       {
         path: 'posts/:id/edit',
         name: 'admin-post-edit',
+        meta: { title: '编辑文章' },
         component: () => import('@/views/admin/PostEditor.vue')
       },
       {
         path: 'env-check',
         name: 'admin-env-check',
-        component: () => import('@/views/admin/EnvCheck.vue')
+        meta: { title: '环境检查' },
+        component: () => import('@/views/tools/EnvCheck.vue')
       }
     ]
   }

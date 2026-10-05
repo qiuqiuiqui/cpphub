@@ -5,8 +5,12 @@ export interface PostSummary {
   title: string
   slug: string
   status: string
+  categoryId?: number | null
   publishedAt: string | null
   createdAt: string
+  updatedAt: string | null
+  wordCount: number
+  viewCount: number
   tags?: string[]
 }
 
@@ -14,11 +18,16 @@ export interface PostDetail {
   id: number
   title: string
   slug: string
+  contentMd: string
   contentHtml: string
   tocJson: string
+  status: string
+  categoryId?: number | null
   publishedAt: string | null
   createdAt: string
-  updatedAt: string
+  updatedAt: string | null
+  wordCount: number
+  viewCount: number
   tags: string[]
 }
 

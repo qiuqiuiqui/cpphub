@@ -5,7 +5,7 @@
       <n-menu
         :options="menuOptions"
         :value="activeKey"
-        @update:value="(k) => router.push({ name: k })"
+        @update:value="handleMenuSelect"
       />
     </n-layout-sider>
     <n-layout>
@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NMenu, NSpace, NTag, NButton, useMessage } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
@@ -36,12 +36,31 @@ const auth = useAuthStore()
 const message = useMessage()
 
 const menuOptions: MenuOption[] = [
-  { label: '文章管理', key: 'admin-posts' },
   { label: '新建文章', key: 'admin-post-new' },
-  { label: 'C++ 环境检测', key: 'admin-env-check' }
+  {
+    label: '文章管理',
+    key: 'article-management',
+    children: [
+      { label: '发布文章管理', key: 'admin-posts-published' },
+      { label: '草稿箱管理', key: 'admin-posts-drafts' }
+    ]
+  },
+  { label: '栏目管理', key: 'admin-categories' }
 ]
 
-const activeKey = computed(() => (route.name as string) || 'admin-posts')
+const activeKey = computed(() => {
+  const name = String(route.name || '')
+  if (name === 'admin-post-new') return 'admin-post-new'
+  if (name === 'admin-posts-published') return 'admin-posts-published'
+  if (name === 'admin-posts-drafts') return 'admin-posts-drafts'
+  if (name === 'admin-categories') return 'admin-categories'
+  return 'admin-posts-published'
+})
+
+function handleMenuSelect(key: string) {
+  if (!key || key === 'article-management') return
+  router.push({ name: key as any })
+}
 
 async function onLogout() {
   await auth.logout()

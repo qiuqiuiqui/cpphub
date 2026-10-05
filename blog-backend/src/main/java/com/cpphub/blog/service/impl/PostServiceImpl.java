@@ -9,9 +9,11 @@ import com.cpphub.blog.common.PageResult;
 import com.cpphub.blog.dto.PostDTO;
 import com.cpphub.blog.dto.PostDetailDTO;
 import com.cpphub.blog.dto.PostSummaryDTO;
+import com.cpphub.blog.entity.Category;
 import com.cpphub.blog.entity.Post;
 import com.cpphub.blog.entity.PostTag;
 import com.cpphub.blog.entity.Tag;
+import com.cpphub.blog.mapper.CategoryMapper;
 import com.cpphub.blog.mapper.PostMapper;
 import com.cpphub.blog.mapper.PostTagMapper;
 import com.cpphub.blog.mapper.TagMapper;
@@ -27,13 +29,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements PostService {
   private final MarkdownService markdownService;
   private final TagMapper tagMapper;
+  private final CategoryMapper categoryMapper;
   private final PostTagMapper postTagMapper;
 
   @Override
@@ -52,9 +54,63 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
   }
 
   @Override
+  public List<PostSummaryDTO> listPublishedByCategory(Long categoryId, long page, long size) {
+    List<Post> posts = baseMapper.selectList(Wrappers.<Post>lambdaQuery()
+            .eq(Post::getCategoryId, categoryId)
+            .eq(Post::getStatus, "PUBLISHED")
+            .isNull(Post::getDeletedAt)
+            .orderByDesc(Post::getPublishedAt));
+    return posts.stream().map(this::toSummary).collect(Collectors.toList());
+  }
+
+  @Override
+  public List<PostSummaryDTO> listPublishedByCategoryBySlug(String categorySlug) {
+    if (StrUtil.isBlank(categorySlug)) {
+      return List.of();
+    }
+    Category category = categoryMapper.selectOne(Wrappers.<Category>lambdaQuery()
+            .eq(Category::getSlug, categorySlug)
+            .eq(Category::getEnabled, true));
+    if (category == null) {
+      return List.of();
+    }
+    return listPublishedByCategory(category.getId(), 1, 50);
+  }
+
+  @Override
+  public PageResult<PostSummaryDTO> listAdmin(long page, long size, String status) {
+    IPage<Post> p = new Page<>(page, size);
+    IPage<Post> result = baseMapper.selectAdminPage(p, status);
+    List<PostSummaryDTO> records =
+        result.getRecords().stream().map(this::toSummary).collect(Collectors.toList());
+    if (!records.isEmpty()) {
+      Map<Long, List<String>> tagsByPost = loadTagsForPosts(
+          records.stream().map(PostSummaryDTO::getId).collect(Collectors.toList()));
+      records.forEach(r -> r.setTags(tagsByPost.getOrDefault(r.getId(), List.of())));
+    }
+    long total = baseMapper.selectAdminCount(status);
+    return PageResult.of(records, total, page, size);
+  }
+
+  @Override
+  public PostDetailDTO fetchById(Long id) {
+    return fetchDetail(super.getById(id));
+  }
+
+  @Override
   public PostDetailDTO getBySlug(String slug) {
-    Post post = getOne(
-        Wrappers.<Post>lambdaQuery().eq(Post::getSlug, slug).eq(Post::getStatus, "PUBLISHED"));
+    Post post = getOne(Wrappers.<Post>lambdaQuery()
+            .eq(Post::getSlug, slug)
+            .eq(Post::getStatus, "PUBLISHED")
+            .isNull(Post::getDeletedAt));
+    if (post != null) {
+      post.setViewCount((post.getViewCount() == null ? 0 : post.getViewCount()) + 1);
+      updateById(post);
+    }
+    return fetchDetail(post);
+  }
+
+  private PostDetailDTO fetchDetail(Post post) {
     if (post == null)
       return null;
     List<String> tags =
@@ -77,6 +133,9 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     post.setTitle(dto.getTitle());
     post.setSlug(StrUtil.isNotBlank(dto.getSlug()) ? dto.getSlug() : generateSlug(dto.getTitle()));
     post.setContentMd(dto.getContentMd());
+    post.setCategoryId(resolveCategoryId(dto.getCategoryId()));
+    post.setWordCount(calculateWordCount(dto.getContentMd()));
+    post.setViewCount(0);
     markdownService.renderAndAttach(post);
     post.setStatus(StrUtil.isBlank(dto.getStatus()) ? "DRAFT" : dto.getStatus().toUpperCase());
     if ("PUBLISHED".equals(post.getStatus())) {
@@ -98,6 +157,9 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
       post.setSlug(dto.getSlug());
     }
     post.setContentMd(dto.getContentMd());
+    post.setCategoryId(resolveCategoryId(
+        dto.getCategoryId() != null ? dto.getCategoryId() : post.getCategoryId()));
+    post.setWordCount(calculateWordCount(dto.getContentMd()));
     markdownService.renderAndAttach(post);
     if (StrUtil.isNotBlank(dto.getStatus())) {
       String newStatus = dto.getStatus().toUpperCase();
@@ -127,7 +189,53 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     dto.setStatus(post.getStatus());
     dto.setPublishedAt(post.getPublishedAt());
     dto.setCreatedAt(post.getCreatedAt());
+    dto.setUpdatedAt(post.getUpdatedAt());
+    dto.setCategoryId(post.getCategoryId());
+    dto.setWordCount(post.getWordCount() == null ? calculateWordCount(post.getContentMd())
+                                                 : post.getWordCount());
+    dto.setViewCount(post.getViewCount() == null ? 0 : post.getViewCount());
     return dto;
+  }
+
+  private int calculateWordCount(String contentMd) {
+    if (StrUtil.isBlank(contentMd)) {
+      return 0;
+    }
+    String text = contentMd.replaceAll("[`*_~>#+\\-\\[\\]()]", " ");
+    String[] words = text.split("\\s+");
+    int count = 0;
+    for (String word : words) {
+      if (!word.isBlank()) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private Long resolveCategoryId(Long requestedCategoryId) {
+    Long categoryId = requestedCategoryId;
+    if (categoryId != null) {
+      Category category = categoryMapper.selectById(categoryId);
+      if (category != null && Boolean.TRUE.equals(category.getEnabled())) {
+        return categoryId;
+      }
+    }
+    Category fallback = categoryMapper.selectOne(Wrappers.<Category>lambdaQuery()
+            .eq(Category::getSlug, "other")
+            .eq(Category::getEnabled, true));
+    if (fallback != null) {
+      return fallback.getId();
+    }
+    Category other = new Category();
+    other.setName("其它");
+    other.setSlug("other");
+    other.setParentId(null);
+    other.setSort(99);
+    other.setEnabled(true);
+    other.setCreatedAt(LocalDateTime.now());
+    other.setUpdatedAt(LocalDateTime.now());
+    categoryMapper.insert(other);
+    return other.getId();
   }
 
   private Map<Long, List<String>> loadTagsForPosts(List<Long> postIds) {

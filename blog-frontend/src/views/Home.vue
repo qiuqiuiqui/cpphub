@@ -1,6 +1,15 @@
 <template>
   <div class="container">
-    <h1 class="page-title">最新文章</h1>
+    <section class="category-hero">
+      <h1 class="page-title">学习专栏</h1>
+      <div class="category-grid">
+        <router-link v-for="c in rootCategories" :key="c.id" :to="{ name: 'category-detail', params: { slug: c.slug } }" class="category-card">
+          {{ c.name }}
+        </router-link>
+      </div>
+    </section>
+
+    <h2 class="page-title secondary">最新文章</h2>
     <n-spin :show="loading">
       <div v-if="posts.length === 0 && !loading" class="empty">
         还没有发布的文章。
@@ -13,7 +22,11 @@
           </router-link>
         </h2>
         <div class="meta">
-          <span>📅 {{ formatDate(p.publishedAt || p.createdAt) }}</span>
+          <span>📅 发布：{{ formatDate(p.publishedAt || p.createdAt) }}</span>
+          <span>🕒 更新：{{ formatDate(p.updatedAt || p.createdAt) }}</span>
+          <span>📝 {{ p.wordCount ?? 0 }} 字</span>
+          <span>👁 {{ p.viewCount ?? 0 }} 阅读</span>
+          <span v-if="getCategoryPath(p.categoryId)" class="category-path">📂 {{ getCategoryPath(p.categoryId) }}</span>
           <span v-if="p.tags && p.tags.length">
             🏷️
             <router-link
@@ -39,19 +52,42 @@
 import { ref, watch } from 'vue'
 import { NSpin, NPagination } from 'naive-ui'
 import { listPublishedPosts, type PostSummary } from '@/api/posts'
+import { listCategories, type Category } from '@/api/categories'
 
 const posts = ref<PostSummary[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = 10
 const loading = ref(false)
+const rootCategories = ref<Category[]>([])
+const categories = ref<Category[]>([])
+
+function getCategoryPath(categoryId?: number | null): string {
+  if (!categoryId) return ''
+  const map = new Map<number, Category>()
+  categories.value.forEach((category) => map.set(category.id, category))
+
+  const path: string[] = []
+  let current: Category | undefined = map.get(categoryId)
+  while (current) {
+    path.unshift(current.name)
+    current = current.parentId != null ? map.get(current.parentId) : undefined
+  }
+
+  return path.length ? `/${path.join('/')}` : ''
+}
 
 async function load() {
   loading.value = true
   try {
-    const res = await listPublishedPosts(page.value, size)
-    posts.value = res.data.records
-    total.value = res.data.total
+    const [postRes, categoryRes] = await Promise.all([
+      listPublishedPosts(page.value, size),
+      listCategories()
+    ])
+    posts.value = postRes.data.records
+    total.value = postRes.data.total
+    categories.value = categoryRes.data || []
+    rootCategories.value = categories.value.filter((c) => c.parentId == null)
   } finally {
     loading.value = false
   }
@@ -69,6 +105,27 @@ function formatDate(iso: string | null) {
 .page-title {
   margin-bottom: 24px;
   font-size: 24px;
+}
+.page-title.secondary {
+  font-size: 20px;
+  margin-top: 36px;
+}
+.category-hero {
+  margin-bottom: 24px;
+}
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.category-card {
+  display: block;
+  padding: 18px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%);
+  color: #1f3a5f;
+  text-decoration: none;
+  font-weight: 600;
 }
 .empty {
   padding: 60px 0;
@@ -99,6 +156,11 @@ function formatDate(iso: string | null) {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
+  align-items: center;
+}
+.category-path {
+  color: #5b7db8;
+  font-weight: 500;
 }
 .tag {
   margin-right: 6px;

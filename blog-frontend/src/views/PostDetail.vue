@@ -4,8 +4,12 @@
       <article v-if="post" class="post">
         <h1 class="title">{{ post.title }}</h1>
         <div class="meta">
-          <span>📅 {{ formatDate(post.publishedAt || post.createdAt) }}</span>
-          <span v-if="post.tags.length">
+          <span>📅 发布：{{ formatDate(post.publishedAt || post.createdAt) }}</span>
+          <span>🕒 更新：{{ formatDate(post.updatedAt || post.publishedAt || post.createdAt) }}</span>
+          <span>📝 {{ post.wordCount ?? 0 }} 字</span>
+          <span>👁 {{ post.viewCount ?? 0 }} 阅读</span>
+          <span v-if="categoryPath" class="category-path">📂 {{ categoryPath }}</span>
+          <span v-if="post.tags && post.tags.length">
             🏷️
             <router-link
               v-for="t in post.tags"
@@ -28,17 +32,39 @@ import { useRoute } from 'vue-router'
 import { NSpin } from 'naive-ui'
 import hljs from 'highlight.js'
 import { getPostBySlug, type PostDetail } from '@/api/posts'
+import { listCategories, type Category } from '@/api/categories'
 
 const route = useRoute()
 const post = ref<PostDetail | null>(null)
 const loading = ref(false)
+const categories = ref<Category[]>([])
+const categoryPath = ref('')
+
+function resolveCategoryPath(categoryId?: number | null): string {
+  if (!categoryId) return ''
+  const map = new Map<number, Category>()
+  categories.value.forEach((category) => map.set(category.id, category))
+
+  const path: string[] = []
+  let current: Category | undefined = map.get(categoryId)
+  while (current) {
+    path.unshift(current.name)
+    current = current.parentId != null ? map.get(current.parentId) : undefined
+  }
+
+  return path.length ? `/${path.join('/')}` : ''
+}
 
 async function load() {
   loading.value = true
   try {
-    const res = await getPostBySlug(route.params.slug as string)
-    post.value = res.data
-    // Client-side highlight (server already pre-rendered, this is a safety net)
+    const [postRes, categoryRes] = await Promise.all([
+      getPostBySlug(route.params.slug as string),
+      listCategories()
+    ])
+    post.value = postRes.data
+    categories.value = categoryRes.data || []
+    categoryPath.value = resolveCategoryPath(post.value?.categoryId)
     requestAnimationFrame(() => {
       document.querySelectorAll<HTMLElement>('.markdown-body pre code').forEach((el) => {
         hljs.highlightElement(el)
@@ -46,6 +72,7 @@ async function load() {
     })
   } catch {
     post.value = null
+    categoryPath.value = ''
   } finally {
     loading.value = false
   }
@@ -76,6 +103,14 @@ function formatDate(iso: string | null) {
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid #eee;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.category-path {
+  color: #5b7db8;
+  font-weight: 500;
 }
 .tag {
   margin-right: 6px;

@@ -8,9 +8,15 @@
         </router-link>
         <nav class="nav">
           <router-link to="/">首页</router-link>
+          <router-link to="/categories/computer-foundation">专栏导航</router-link>
+          <router-link to="/tools">工具</router-link>
           <router-link to="/search">搜索</router-link>
-          <router-link to="/admin/posts" v-if="auth.isAdmin()">管理</router-link>
-          <router-link to="/admin/login" v-else>登录</router-link>
+          <template v-if="auth.isAdmin()">
+            <router-link to="/admin/posts/published">发布文章管理</router-link>
+            <router-link to="/admin/posts/drafts">草稿箱管理</router-link>
+            <router-link to="/admin/posts/new">新建文章</router-link>
+          </template>
+          <router-link v-else to="/admin/login">登录</router-link>
         </nav>
       </div>
     </header>

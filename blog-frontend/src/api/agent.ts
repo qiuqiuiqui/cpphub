@@ -12,10 +12,16 @@ export interface DeviceStatus {
 
 export interface ToolchainProbe {
   name: string
+  category?: string
   available: boolean
   version?: string
   path?: string
   error?: string
+  instances?: Array<{
+    path: string
+    version: string
+    source?: string
+  }>
 }
 
 export interface ToolchainResult {
