@@ -9,6 +9,7 @@ public class CategoryDTO {
   private String name;
   private String slug;
   private Long parentId;
+  private Integer depth;
   private Integer sort;
   private Boolean enabled;
   private LocalDateTime createdAt;

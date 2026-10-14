@@ -34,6 +34,7 @@
               :key="t"
               :to="{ name: 'tag-archive', params: { name: t } }"
               class="tag"
+              :style="{ background: (tagColorMap[t] || '#4098FC') + '22', color: tagColorMap[t] || '#4098FC', border: '1px solid ' + (tagColorMap[t] || '#4098FC') }"
             >{{ t }}</router-link>
           </span>
         </div>
@@ -53,6 +54,7 @@ import { ref, watch } from 'vue'
 import { NSpin, NPagination } from 'naive-ui'
 import { listPublishedPosts, type PostSummary } from '@/api/posts'
 import { listCategories, type Category } from '@/api/categories'
+import { listTags, type TagOption } from '@/api/tags'
 
 const posts = ref<PostSummary[]>([])
 const total = ref(0)
@@ -61,6 +63,7 @@ const size = 10
 const loading = ref(false)
 const rootCategories = ref<Category[]>([])
 const categories = ref<Category[]>([])
+const tagColorMap = ref<Record<string, string>>({})
 
 function getCategoryPath(categoryId?: number | null): string {
   if (!categoryId) return ''
@@ -80,14 +83,20 @@ function getCategoryPath(categoryId?: number | null): string {
 async function load() {
   loading.value = true
   try {
-    const [postRes, categoryRes] = await Promise.all([
+    const [postRes, categoryRes, tagRes] = await Promise.all([
       listPublishedPosts(page.value, size),
-      listCategories()
+      listCategories(),
+      listTags()
     ])
     posts.value = postRes.data.records
     total.value = postRes.data.total
     categories.value = categoryRes.data || []
     rootCategories.value = categories.value.filter((c) => c.parentId == null)
+    const tags = (tagRes.data || []) as TagOption[]
+    tagColorMap.value = tags.reduce<Record<string, string>>((map, tag) => {
+      map[tag.name] = tag.color || '#4098FC'
+      return map
+    }, {})
   } finally {
     loading.value = false
   }

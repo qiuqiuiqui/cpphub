@@ -45,7 +45,8 @@ const menuOptions: MenuOption[] = [
       { label: '草稿箱管理', key: 'admin-posts-drafts' }
     ]
   },
-  { label: '栏目管理', key: 'admin-categories' }
+  { label: '栏目管理', key: 'admin-categories' },
+  { label: '标签管理', key: 'admin-tags' }
 ]
 
 const activeKey = computed(() => {
@@ -54,6 +55,7 @@ const activeKey = computed(() => {
   if (name === 'admin-posts-published') return 'admin-posts-published'
   if (name === 'admin-posts-drafts') return 'admin-posts-drafts'
   if (name === 'admin-categories') return 'admin-categories'
+  if (name === 'admin-tags') return 'admin-tags'
   return 'admin-posts-published'
 })
 

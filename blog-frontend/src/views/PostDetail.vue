@@ -16,6 +16,7 @@
               :key="t"
               :to="{ name: 'tag-archive', params: { name: t } }"
               class="tag"
+              :style="{ background: (tagColorMap[t] || '#4098FC') + '22', color: tagColorMap[t] || '#4098FC', border: '1px solid ' + (tagColorMap[t] || '#4098FC') }"
             >{{ t }}</router-link>
           </span>
         </div>
@@ -33,12 +34,14 @@ import { NSpin } from 'naive-ui'
 import hljs from 'highlight.js'
 import { getPostBySlug, type PostDetail } from '@/api/posts'
 import { listCategories, type Category } from '@/api/categories'
+import { listTags, type TagOption } from '@/api/tags'
 
 const route = useRoute()
 const post = ref<PostDetail | null>(null)
 const loading = ref(false)
 const categories = ref<Category[]>([])
 const categoryPath = ref('')
+const tagColorMap = ref<Record<string, string>>({})
 
 function resolveCategoryPath(categoryId?: number | null): string {
   if (!categoryId) return ''
@@ -58,12 +61,18 @@ function resolveCategoryPath(categoryId?: number | null): string {
 async function load() {
   loading.value = true
   try {
-    const [postRes, categoryRes] = await Promise.all([
+    const [postRes, categoryRes, tagRes] = await Promise.all([
       getPostBySlug(route.params.slug as string),
-      listCategories()
+      listCategories(),
+      listTags()
     ])
     post.value = postRes.data
     categories.value = categoryRes.data || []
+    const tags = (tagRes.data || []) as TagOption[]
+    tagColorMap.value = tags.reduce<Record<string, string>>((map, tag) => {
+      map[tag.name] = tag.color || '#4098FC'
+      return map
+    }, {})
     categoryPath.value = resolveCategoryPath(post.value?.categoryId)
     requestAnimationFrame(() => {
       document.querySelectorAll<HTMLElement>('.markdown-body pre code').forEach((el) => {

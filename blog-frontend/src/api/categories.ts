@@ -5,6 +5,7 @@ export interface Category {
   name: string
   slug: string
   parentId: number | null
+  depth: number
   sort: number
   enabled: boolean
   createdAt?: string

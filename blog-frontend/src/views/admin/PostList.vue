@@ -138,10 +138,10 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  NCard, NSpace, NButton, NSpin, NDataTable, NTag, NTabs, NTabPane, NEmpty, NCheckbox, NSelect, useMessage,
+  NCard, NSpace, NButton, NSpin, NDataTable, NTag, NTabs, NTabPane, NEmpty, NCheckbox, NSelect, useDialog, useMessage,
   type DataTableColumns
 } from 'naive-ui'
 import { listAdminPosts, deletePost, type PostSummary } from '@/api/adminPosts'
@@ -150,12 +150,17 @@ import { listCategories, type Category } from '@/api/categories'
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
+const dialog = useDialog()
 const posts = ref<PostSummary[]>([])
 const categories = ref<Category[]>([])
 const loading = ref(false)
 const activeTab = ref<'ALL' | 'DRAFT' | 'PUBLISHED'>('ALL')
 const selectedCategoryId = ref<number | null>(null)
 const isSidebarCollapsed = ref(false)
+const selectedRowKeys = ref<number[]>([])
+const sortBy = ref<string | null>(null)
+const sortDir = ref<'asc' | 'desc'>('asc')
+const selectedTag = ref<string | null>(null)
 
 const counts = ref({ ALL: 0, DRAFT: 0, PUBLISHED: 0 })
 const emptyDesc = ref('暂无文章')
@@ -322,13 +327,6 @@ watch(() => route.name, (v) => {
   else activeTab.value = 'ALL'
   loadAll()
 })
-
-import { computed } from 'vue'
-
-const selectedRowKeys = ref<number[]>([])
-const sortBy = ref<string | null>(null)
-const sortDir = ref<'asc' | 'desc'>('asc')
-const selectedTag = ref<string | null>(null)
 
 const activeTabTitle = computed(() => (activeTab.value === 'PUBLISHED' ? '发布文章管理' : activeTab.value === 'DRAFT' ? '草稿箱' : '文章管理'))
 const pageTitle = computed(() => {
@@ -508,8 +506,25 @@ async function onPublish(row: PostSummary) {
   }
 }
 
+function confirmAction(title: string, content: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    dialog.warning({
+      title,
+      content,
+      positiveText: '确认',
+      negativeText: '取消',
+      closable: true,
+      maskClosable: false,
+      onPositiveClick: () => resolve(true),
+      onNegativeClick: () => resolve(false),
+      onClose: () => resolve(false)
+    })
+  })
+}
+
 async function onDelete(row: PostSummary) {
-  if (!confirm(`确认删除「${row.title}」？`)) return
+  const confirmed = await confirmAction('删除文章', `确认删除「${row.title}」？此操作不可撤销。`)
+  if (!confirmed) return
   try {
     await deletePost(row.id)
     message.success('已删除')
@@ -520,10 +535,13 @@ async function onDelete(row: PostSummary) {
 }
 
 async function onBatchDelete() {
-  if (!confirm(`确认删除已选的 ${selectedRowKeys.value.length} 篇文章？`)) return
+  const confirmed = await confirmAction(
+    '批量删除',
+    `确认删除已选的 ${selectedRowKeys.value.length} 篇文章？此操作不可撤销。`
+  )
+  if (!confirmed) return
   try {
     for (const id of selectedRowKeys.value) {
-      // ignore individual errors to continue
       try {
         await deletePost(id)
       } catch {}

@@ -85,6 +85,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/CategoryManager.vue')
       },
       {
+        path: 'tags',
+        name: 'admin-tags',
+        meta: { title: '标签管理' },
+        component: () => import('@/views/admin/TagManager.vue')
+      },
+      {
         path: 'posts/:id/edit',
         name: 'admin-post-edit',
         meta: { title: '编辑文章' },

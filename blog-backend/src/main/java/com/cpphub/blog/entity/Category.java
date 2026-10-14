@@ -18,6 +18,8 @@ public class Category {
 
   @TableField("parent_id") private Long parentId;
 
+  @TableField("depth") private Integer depth;
+
   private Integer sort;
 
   @TableField("is_enabled") private Boolean enabled;

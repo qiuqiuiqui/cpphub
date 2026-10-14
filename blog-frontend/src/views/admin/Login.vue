@@ -41,8 +41,13 @@ async function onSubmit() {
   try {
     await auth.login(form.username, form.password)
     message.success('登录成功')
-    const redirect = (route.query.redirect as string) || '/admin/posts'
-    router.push(redirect)
+    const redirect = (route.query.redirect as string) || '/admin/posts/published'
+    // 仅当 redirect 指向真实存在的路由名时采用，避免跳到不存在的旧路径
+    if (redirect && redirect.startsWith('/admin')) {
+      router.push(redirect)
+    } else {
+      router.push({ name: 'admin-posts-published' })
+    }
   } catch (e: any) {
     message.error(e?.response?.data?.message || '登录失败')
   } finally {

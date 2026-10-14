@@ -20,9 +20,12 @@ import com.cpphub.blog.mapper.TagMapper;
 import com.cpphub.blog.service.MarkdownService;
 import com.cpphub.blog.service.PostService;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -177,8 +180,14 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
   @Override
   @Transactional
   public void delete(Long id) {
+    Set<Long> tagIds =
+        postTagMapper.selectList(Wrappers.<PostTag>lambdaQuery().eq(PostTag::getPostId, id))
+            .stream()
+            .map(PostTag::getTagId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
     removeById(id);
     postTagMapper.delete(Wrappers.<PostTag>lambdaQuery().eq(PostTag::getPostId, id));
+    syncTagUseCounts(tagIds);
   }
 
   private PostSummaryDTO toSummary(Post post) {
@@ -252,13 +261,20 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
   }
 
   private void attachTags(Long postId, List<String> tagNames) {
-    // detach existing
+    Set<Long> oldTagIds =
+        postTagMapper.selectList(Wrappers.<PostTag>lambdaQuery().eq(PostTag::getPostId, postId))
+            .stream()
+            .map(PostTag::getTagId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
     postTagMapper.delete(Wrappers.<PostTag>lambdaQuery().eq(PostTag::getPostId, postId));
-    if (tagNames == null || tagNames.isEmpty())
+    if (tagNames == null || tagNames.isEmpty()) {
+      syncTagUseCounts(oldTagIds);
       return;
-    // upsert tags
+    }
+
+    Set<Long> tagIds = new LinkedHashSet<>();
     for (String raw : tagNames) {
-      String name = raw.trim();
+      String name = raw == null ? "" : raw.trim();
       if (name.isEmpty())
         continue;
       Tag existing = tagMapper.selectOne(Wrappers.<Tag>lambdaQuery().eq(Tag::getName, name));
@@ -266,17 +282,55 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
       if (existing == null) {
         Tag t = new Tag();
         t.setName(name);
+        t.setColor(defaultTagColor(name));
         t.setUseCount(0);
+        t.setCreatedAt(LocalDateTime.now());
+        t.setUpdatedAt(LocalDateTime.now());
         tagMapper.insert(t);
         tagId = t.getId();
       } else {
         tagId = existing.getId();
+        if (existing.getColor() == null || existing.getColor().isBlank()) {
+          existing.setColor(defaultTagColor(name));
+          existing.setUpdatedAt(LocalDateTime.now());
+          tagMapper.updateById(existing);
+        }
       }
+      tagIds.add(tagId);
       PostTag pt = new PostTag();
       pt.setPostId(postId);
       pt.setTagId(tagId);
       postTagMapper.insert(pt);
     }
+    syncTagUseCounts(tagIds);
+    syncTagUseCounts(oldTagIds);
+  }
+
+  private void syncTagUseCounts(Set<Long> tagIds) {
+    if (tagIds == null || tagIds.isEmpty()) {
+      return;
+    }
+    for (Long tagId : tagIds) {
+      Long count =
+          postTagMapper.selectCount(Wrappers.<PostTag>lambdaQuery().eq(PostTag::getTagId, tagId));
+      Tag tag = tagMapper.selectById(tagId);
+      if (tag == null) {
+        continue;
+      }
+      tag.setUseCount(Math.toIntExact(count));
+      tag.setUpdatedAt(LocalDateTime.now());
+      tagMapper.updateById(tag);
+    }
+  }
+
+  private String defaultTagColor(String tagName) {
+    String[] palette = {"#4098FC", "#18A058", "#F0A020", "#D03050", "#7D4DDB", "#2DB7F5", "#F56292",
+        "#6CBF84", "#FF7A45", "#9C6ADE"};
+    if (tagName == null || tagName.isBlank()) {
+      return palette[0];
+    }
+    int index = Math.abs(tagName.hashCode()) % palette.length;
+    return palette[index];
   }
 
   private String generateSlug(String title) {

@@ -42,4 +42,4 @@ export const getPostBySlug = (slug: string) =>
 export const searchPosts = (q: string, limit = 20) =>
   request.get<any, ApiResult<PostSummary[]>>('/posts/search', { params: { q, limit } })
 
-export const listTags = () => request.get<any, ApiResult<string[]>>('/tags')
+export const listTags = () => request.get<any, ApiResult<any[]>>('/tags')

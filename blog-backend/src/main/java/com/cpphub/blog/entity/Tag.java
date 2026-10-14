@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 import lombok.Data;
 
-
 @Data
 @TableName("tag")
 public class Tag {
@@ -14,7 +13,11 @@ public class Tag {
 
   private String name;
 
+  private String color;
+
   private Integer useCount;
 
   private LocalDateTime createdAt;
+
+  private LocalDateTime updatedAt;
 }

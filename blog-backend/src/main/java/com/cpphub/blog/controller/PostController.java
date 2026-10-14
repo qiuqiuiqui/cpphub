@@ -43,11 +43,4 @@ public class PostController {
       @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
     return Result.ok(postService.search(q, limit));
   }
-
-  @GetMapping("/tags")
-  public Result<List<String>> tags() {
-    // Simple endpoint - return tag names. Could be expanded with use_count later.
-    return Result.ok(
-        postService.list().stream().map(p -> List.<String>of()).findFirst().orElse(List.of()));
-  }
 }

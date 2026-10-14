@@ -49,6 +49,7 @@ public class CategoryServiceImpl implements CategoryService {
     category.setName(dto.getName().trim());
     category.setSlug(normalizeSlug(dto.getSlug(), dto.getName()));
     category.setParentId(dto.getParentId());
+    category.setDepth(resolveDepth(dto.getParentId()));
     category.setSort(dto.getSort() == null ? 0 : dto.getSort());
     category.setEnabled(dto.getEnabled() == null || dto.getEnabled());
     category.setCreatedAt(LocalDateTime.now());
@@ -72,6 +73,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
     if (dto.getParentId() != null) {
       category.setParentId(dto.getParentId());
+      category.setDepth(resolveDepth(dto.getParentId()));
     }
     if (dto.getSort() != null) {
       category.setSort(dto.getSort());
@@ -102,11 +104,27 @@ public class CategoryServiceImpl implements CategoryService {
     dto.setName(category.getName());
     dto.setSlug(category.getSlug());
     dto.setParentId(category.getParentId());
+    dto.setDepth(category.getDepth() == null ? 1 : category.getDepth());
     dto.setSort(category.getSort());
     dto.setEnabled(category.getEnabled() == null || category.getEnabled());
     dto.setCreatedAt(category.getCreatedAt());
     dto.setUpdatedAt(category.getUpdatedAt());
     return dto;
+  }
+
+  private int resolveDepth(Long parentId) {
+    if (parentId == null) {
+      return 1;
+    }
+    Category parent = categoryMapper.selectById(parentId);
+    if (parent == null) {
+      throw new IllegalArgumentException("parent category not found: " + parentId);
+    }
+    Integer parentDepth = parent.getDepth() == null ? 1 : parent.getDepth();
+    if (parentDepth >= 3) {
+      throw new IllegalArgumentException("category depth cannot exceed 3");
+    }
+    return parentDepth + 1;
   }
 
   private String normalizeSlug(String rawSlug, String name) {
@@ -132,6 +150,7 @@ public class CategoryServiceImpl implements CategoryService {
     other.setName("其它");
     other.setSlug("other");
     other.setParentId(null);
+    other.setDepth(1);
     other.setSort(99);
     other.setEnabled(true);
     other.setCreatedAt(LocalDateTime.now());

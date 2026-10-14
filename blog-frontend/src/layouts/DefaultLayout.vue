@@ -8,7 +8,12 @@
         </router-link>
         <nav class="nav">
           <router-link to="/">首页</router-link>
-          <router-link to="/categories/computer-foundation">专栏导航</router-link>
+          <router-link
+            to="/categories/computer-foundation"
+            :class="{ 'nav-active': $route.path.startsWith('/categories') }"
+          >
+            专栏导航
+          </router-link>
           <router-link to="/tools">工具</router-link>
           <router-link to="/search">搜索</router-link>
           <template v-if="auth.isAdmin()">
@@ -78,7 +83,8 @@ onMounted(() => auth.fetchMe())
 .nav a {
   color: #555;
 }
-.nav a.router-link-exact-active {
+.nav a.router-link-exact-active,
+.nav a.nav-active {
   color: #2080f0;
   font-weight: 600;
 }
